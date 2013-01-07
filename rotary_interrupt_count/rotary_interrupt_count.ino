@@ -37,6 +37,7 @@ void loop(){ //Do stuff here
     Serial.print("Encoder 2: ");
   Serial.println(encoder2Pos, DEC);
 }
+
 void doEncoder1A(){
   checkChannelA(encoder1Pos, encoder1PinA, encoder1PinB);
 }
