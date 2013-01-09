@@ -1,6 +1,7 @@
 
 
 int sensorPin = A0;
+int avg;
 float sensorValue = 0;
 
 void setup() 
@@ -16,11 +17,11 @@ void loop()
    } 
   sensorValue = avg / 10;
 
-    sensorValue = sensorValueTotal / numberOfSteps;
+    
     sensorValue = (2914 / (sensorValue + 5)) - 1;
     sensorValue = map(sensorValue, 3, 40, 0, 255);
     Serial.println(sensorValue);
-    //Serial.println(numberOfSteps);
+    
     
     delay (200);
   }
