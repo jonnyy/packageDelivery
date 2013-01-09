@@ -16,42 +16,47 @@
 //The claw is between motors A and B.
 
 //The code is open source.
-
+#define ENCODER_OPTIMIZE_INTERRUPTS
 #include <Servo.h> 
+#include <Encoder.h>
 
 //Motor Labels Correspond to the labeling on the base.
 Servo motor_A;  // create servo object to control a motor
 Servo motor_B;  // create servo object to control a motor
 Servo motor_C;  // create servo object to control a motor
 Servo motor_D;  // create servo object to control a motor
-
+volatile int flag = 0;
 //Motor Constants
 #define maxCWSpeed 2000
 #define maxCCWSpeed 1000
 //TODO: Shouold probably only need one of these since we will be adjusting on the fly
-#define mtr_c_full_CCW 980
-#define mtr_d_full_CCW 983
-#define mtr_a_full_CCW 978
-#define mtr_b_full_CCW 970
+#define mtr_c_full_CCW 1010//980
+#define mtr_d_full_CCW 1013//983
+#define mtr_a_full_CCW 1008//978
+#define mtr_b_full_CCW 1000//970
 
 //b stop = 1570 for all
-#define mtr_b_full_CW 1996
-#define mtr_c_full_CW 2001
-#define mtr_d_full_CW 2011
-#define mtr_a_full_CW 2005
+#define mtr_b_full_CW 1985//1996
+#define mtr_c_full_CW 1089//2001
+#define mtr_d_full_CW 2000//2011
+#define mtr_a_full_CW 1994//2005
 #define mtr_off 1570        // Motor off position
 
 //Encoder Constants
+//Each Encoder has 2 cntrl pins.  The first shall always be attached to something with interrupt capability
+Encoder encoderA(3, 4);//( 2, 22);
+Encoder encoderB(2,22);////( 3, 24);//24
+Encoder encoderC(21, 26);
+Encoder encoderD(20, 28);
 #define fullRotation 160
-#define encoderAPin1 2 //Pin 2 is the first interrupt pin and must be used for handling this interrupt
-#define encoderAPin2 22
-#define encoderBPin1 3 //Pin 3 is the second interrupt pin and must be used for handling this second interrupt
-#define encoderBPin2 24
-#define encoderCPin1 21
-#define encoderCPin2 26
-#define encoderDPin1 20
-#define encoderDPin2 28
-#define balancePin   19
+//#define encoderAPin1 2 //Pin 2 is the first interrupt pin and must be used for handling this interrupt
+//#define encoderAPin2 22
+//#define encoderBPin1 3 //Pin 3 is the second interrupt pin and must be used for handling this second interrupt
+//#define encoderBPin2 24
+//#define encoderCPin1 21
+//#define encoderCPin2 26
+//#define encoderDPin1 20
+//#define encoderDPin2 28
 
 volatile int encoderAPos = 0;
 volatile int encoderBPos = 0;
@@ -60,7 +65,7 @@ volatile int encoderDPos = 0;
  
 void setup() 
 { 
-  motor_A.attach(4);  // attaches the A motor on pin 3 to the motor
+  motor_A.attach(8);//SHOULD BE 4  // attaches the A motor on pin 3 to the motor
   motor_B.attach(5);  // attaches the B motor on pin 5 to the motor
   motor_C.attach(6);  // attaches the C motor on pin 6 to the motor
   motor_D.attach(7);  // attaches the D motor on pin 9 to the motor
@@ -70,20 +75,10 @@ void setup()
   motor_C.writeMicroseconds(mtr_off);                  // sets the servo position according to the scaled value
   motor_D.writeMicroseconds(mtr_off);                  // sets the servo position according to the scaled value
  
-  pinMode(encoderAPin1, INPUT); 
-  pinMode(encoderAPin2, INPUT);
-  pinMode(encoderBPin1, INPUT); 
-  pinMode(encoderBPin2, INPUT);
-  pinMode(encoderCPin1, INPUT); 
-  pinMode(encoderCPin2, INPUT);
-  pinMode(encoderDPin1, INPUT); 
-  pinMode(encoderDPin2, INPUT); 
-  // encoder pin on interrupt 0 (pin 2)
-  attachInterrupt(0, doEncoderA, CHANGE);
-  attachInterrupt(1, doEncoderB, CHANGE);
-  attachInterrupt(2, doEncoderC, CHANGE);
-  attachInterrupt(3, doEncoderD, CHANGE);
-  attachInterrupt(4, balance, CHANGE);
+ pinMode(13, INPUT);
+ digitalWrite(13, LOW);
+ delay(2000);
+ digitalWrite(13, HIGH);
   Serial.begin (9600); 
 } 
 //Motor prototypes
@@ -101,97 +96,74 @@ void speedUpMotor(Servo motor);
 //Encoder Prototypes
 void checkPin1(volatile int &encoderPos, int encoderPinA, int encoderPinB);
 void checkPin2(volatile int &encoderPos, int encoderPinA, int encoderPinB);
- 
+ int prev = 0;
 void loop() 
 { 
+//  Serial.println(flag);
+  encoderAPos = encoderA.read();
+  encoderBPos = encoderB.read();
+  encoderCPos = encoderC.read();
+  encoderDPos = encoderD.read();
+//Serial.print("Prev is: ");
+//Serial.println(prev);
+  Serial.println(encoderAPos);
+
+  if(encoderAPos/fullRotation != prev){
+   noInterrupts();
+   prev = encoderAPos/fullRotation;
+   balance();
+   interrupts();
+  }
+  Serial.print("Motor A: ");
+  Serial.println(motor_A.readMicroseconds());
+    Serial.print("Motor B: ");
+  Serial.println(motor_B.readMicroseconds());
+    Serial.print("Motor C: ");
+  Serial.println(motor_C.readMicroseconds());
+    Serial.print("Motor D: ");
+  Serial.println(motor_D.readMicroseconds());
+  delay(500);
   
-  test_run();
+//  test_run();
   
   strafe_left();
-  delay(5000);
-  stop_motor('B');
-  stop_motor('C');
+//  delay(5000);
+//  stop_motor('B');
+//  stop_motor('C');
   delay(1000);
   
-  strafe_right();
-  delay(5000);
-  stop_motor('A');
-  stop_motor('D');
-  delay(1000);
-  
-  forward();
-  delay(5000);
-  stop_motor('D');
-  stop_motor('C');
-  delay(1000);
-  
-  backward();
-  delay(5000);
-  stop_motor('B');
-  stop_motor('A');
-  delay(1000);
-  
-  move_CW();
-  delay(750);
-  stop_motor('B');
-  stop_motor('D');
-  delay(1000);
-  
-  move_CCW();
-  delay(750);
-  stop_motor('B');
-  stop_motor('D');
-  delay(1000);
-  
-  stop_motor('4'); //Stop all 4 just in case a mistake was made.
+//  strafe_right();
+//  delay(5000);
+//  stop_motor('A');
+//  stop_motor('D');
+//  delay(1000);
+//  
+//  forward();
+//  delay(5000);
+//  stop_motor('D');
+//  stop_motor('C');
+//  delay(1000);
+//  
+//  backward();
+//  delay(5000);
+//  stop_motor('B');
+//  stop_motor('A');
+//  delay(1000);
+//  
+//  move_CW();
+//  delay(750);
+//  stop_motor('B');
+//  stop_motor('D');
+//  delay(1000);
+//  
+//  move_CCW();
+//  delay(750);
+//  stop_motor('B');
+//  stop_motor('D');
+//  delay(1000);
+//  
+//  stop_motor('4'); //Stop all 4 just in case a mistake was made.
 } 
-
-//Encoder interrupt counters
-//the encoderPos if statements may need to be more sophisticated in the future if we want to do 2 wheel balance
-void doEncoderA(){
-  checkPin1(encoderAPos, encoderAPin1, encoderAPin2);
-  if(encoderAPos % fullRotation){
-   if(((encoderAPos/fullRotation)%2) == 1){
-    digitalWrite(balancePin, HIGH);
-   }
-   else{
-     digitalWrite(balancePin, LOW);
-   }
-  }
-}
-void doEncoderB(){
-  checkPin1(encoderBPos, encoderBPin1, encoderBPin2);
-  if(encoderAPos % fullRotation){
-   if(((encoderAPos/fullRotation)%2) == 1){
-    digitalWrite(balancePin, HIGH);
-   }
-   else{
-     digitalWrite(balancePin, LOW);
-   }
-  }
-}
-void doEncoderC(){
-  checkPin1(encoderCPos, encoderCPin1, encoderCPin2);
-  if(encoderAPos % fullRotation){
-   if(((encoderAPos/fullRotation)%2) == 1){
-    digitalWrite(balancePin, HIGH);
-   }
-   else{
-     digitalWrite(balancePin, LOW);
-   }
-  }
-}
-void doEncoderD(){
-  checkPin1(encoderDPos, encoderDPin1, encoderDPin2);
-  if(encoderAPos % fullRotation){
-   if(((encoderAPos/fullRotation)%2) == 1){
-    digitalWrite(balancePin, HIGH);
-   }
-   else{
-     digitalWrite(balancePin, LOW);
-   }
-  }
-}
 
 void balance(){
   int average = (abs(encoderAPos) + abs(encoderBPos) + abs(encoderCPos) + abs(encoderDPos))/4;
@@ -222,6 +194,7 @@ void balance(){
   else if(encoderDPos < average){
     speedUpMotor(motor_D);
   }
+  flag = encoderAPos/fullRotation;
 }
 
 //FUNCTIONS
